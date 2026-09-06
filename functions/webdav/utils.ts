@@ -47,6 +47,28 @@ export function parseBucketPath(
   return [bucket, path];
 }
 
+/**
+ * 列举 prefix 下的直接子目录（R2 的公共前缀）。
+ *
+ * 带 delimiter 列举时 R2 只把"目录"放进 delimitedPrefixes，
+ * listAll() 只看 objects，于是没有占位对象的目录（例如用 rclone
+ * 直接写入 a/b.txt 而没有建 a）会彻底从列表里消失。
+ */
+export async function* listDirectories(bucket: R2Bucket, prefix?: string) {
+  let cursor: string | undefined = undefined;
+  do {
+    const r2Objects = await bucket.list({
+      prefix: prefix,
+      delimiter: "/",
+      cursor: cursor,
+    });
+
+    for (const commonPrefix of r2Objects.delimitedPrefixes) yield commonPrefix;
+
+    if (r2Objects.truncated) cursor = r2Objects.cursor;
+  } while (r2Objects.truncated);
+}
+
 export async function* listAll(
   bucket: R2Bucket,
   prefix?: string,

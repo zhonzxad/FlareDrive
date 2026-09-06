@@ -1,12 +1,35 @@
 import {
   listAll,
+  listDirectories,
   RequestHandlerParams,
   ROOT_OBJECT,
   WEBDAV_ENDPOINT,
   DIRECTORY_CONTENT_TYPE,
 } from "./utils";
 
-type ListedObject = R2Object | typeof ROOT_OBJECT;
+type DirectoryEntry = {
+  key: string;
+  size: number;
+  uploaded: Date;
+  httpMetadata: { contentType: string };
+  customMetadata: undefined;
+  etag: undefined;
+  httpEtag: undefined;
+};
+
+type ListedObject = R2Object | typeof ROOT_OBJECT | DirectoryEntry;
+
+function syntheticDirectory(key: string): DirectoryEntry {
+  return {
+    key,
+    size: 0,
+    uploaded: new Date(),
+    httpMetadata: { contentType: DIRECTORY_CONTENT_TYPE },
+    customMetadata: undefined,
+    etag: undefined,
+    httpEtag: undefined,
+  };
+}
 
 function xmlEscape(value: string): string {
   return value
@@ -87,7 +110,20 @@ async function findChildren({
     objects.push(object);
   }
 
-  return objects;
+  if (isRecursive) return objects;
+
+  // 没有占位对象的目录只能通过公共前缀看到，listAll 不会遍历它们
+  const objectKeys = new Set(objects.map((object) => object.key));
+  const directories: DirectoryEntry[] = [];
+  for await (const commonPrefix of listDirectories(
+    bucket,
+    prefix === "" ? undefined : prefix
+  )) {
+    const key = commonPrefix.replace(/\/$/, "");
+    if (objectKeys.has(key)) continue;
+    directories.push(syntheticDirectory(key));
+  }
+  return [...objects, ...directories];
 }
 
 export async function handleRequestPropfind({
@@ -104,7 +140,11 @@ export async function handleRequestPropfind({
 
   const children = !isDirectory(rootObject)
     ? []
-    : await findChildren({ bucket, path, isRecursive: depth === "infinity" });
+    : await findChildren({
+        bucket,
+        path,
+        isRecursive: depth === "infinity",
+      });
 
   const items = [rootObject, ...children].map(renderResponse).join("");
 
