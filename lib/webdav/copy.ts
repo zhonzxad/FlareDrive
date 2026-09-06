@@ -43,8 +43,21 @@ export async function handleRequestCopy({
 
   // Check if the destination already exists
   const destinationExists = await bucket.head(destination);
-  if (dontOverwrite && destinationExists)
+  if (dontOverwrite && destinationExists) {
+    // For Overwrite: F, check if destination is a non-empty directory
+    if (destinationExists.httpMetadata?.contentType === "application/x-directory") {
+      // Check if directory has any children
+      const { objects, delimitedPrefixes } = await bucket.list({
+        prefix: destination + "/",
+        delimiter: "/",
+        limit: 1,
+      });
+      if (objects.length > 0 || delimitedPrefixes.length > 0) {
+        return new Response("Precondition Failed: non-empty directory", { status: 412 });
+      }
+    }
     return new Response("Precondition Failed", { status: 412 });
+  }
 
   const isDirectory =
     src.httpMetadata?.contentType === "application/x-directory";
@@ -57,7 +70,10 @@ export async function handleRequestCopy({
       case "infinity": {
         // Delete existing destination directory if overwriting
         if (destinationExists) {
+          // Delete all children first
           await deleteChildren(bucket, destination);
+          // Then delete the directory itself
+          await bucket.delete(destination);
         }
 
         // Copy root directory
