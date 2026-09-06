@@ -72,10 +72,12 @@ export async function* listDirectories(bucket: R2Bucket, prefix?: string) {
 export async function* listAll(
   bucket: R2Bucket,
   prefix?: string,
-  isRecursive: boolean = false
+  isRecursive: boolean = false,
+  limit: number = Infinity
 ) {
   let cursor: string | undefined = undefined;
-  do {
+  let yielded = 0;
+  outer: do {
     var r2Objects = await bucket.list({
       prefix: prefix,
       delimiter: isRecursive ? undefined : "/",
@@ -84,8 +86,12 @@ export async function* listAll(
       include: ["httpMetadata", "customMetadata"],
     });
 
-    for await (const obj of r2Objects.objects)
-      if (!obj.key.startsWith("_$flaredrive$/")) yield obj;
+    for await (const obj of r2Objects.objects) {
+      if (obj.key.startsWith("_$flaredrive$/")) continue;
+      if (yielded >= limit) break outer;
+      yield obj;
+      yielded++;
+    }
 
     if (r2Objects.truncated) cursor = r2Objects.cursor;
   } while (r2Objects.truncated);

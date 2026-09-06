@@ -94,6 +94,11 @@ ${properties.join("\n")}
   </response>`;
 }
 
+// 限制单次 PROPFIND 的对象数，避免在大目录上拼出巨型 XML 把隔离内存耗尽，
+// 也避免 Depth: infinity 在中等规模桶上耗光子请求/CPU 配额
+const PROPFIND_LIMIT_DEPTH_1 = 1000;
+const PROPFIND_LIMIT_DEPTH_INFINITY = 500;
+
 async function findChildren({
   bucket,
   path,
@@ -106,7 +111,10 @@ async function findChildren({
   const objects: Array<R2Object> = [];
 
   const prefix = path === "" ? path : `${path}/`;
-  for await (const object of listAll(bucket, prefix, isRecursive)) {
+  const limit = isRecursive
+    ? PROPFIND_LIMIT_DEPTH_INFINITY
+    : PROPFIND_LIMIT_DEPTH_1;
+  for await (const object of listAll(bucket, prefix, isRecursive, limit)) {
     objects.push(object);
   }
 
@@ -119,9 +127,9 @@ async function findChildren({
     bucket,
     prefix === "" ? undefined : prefix
   )) {
-    const key = commonPrefix.replace(/\/$/, "");
-    if (objectKeys.has(key)) continue;
-    directories.push(syntheticDirectory(key));
+    if (objectKeys.has(commonPrefix.replace(/\/$/, ""))) continue;
+    if (objects.length + directories.length >= limit) break;
+    directories.push(syntheticDirectory(commonPrefix.replace(/\/$/, "")));
   }
   return [...objects, ...directories];
 }
