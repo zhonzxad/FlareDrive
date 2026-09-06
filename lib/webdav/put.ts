@@ -45,11 +45,18 @@ export async function handleRequestPut({
     return handleRequestPutMultipart({ bucket, path, request });
   }
 
-  if (request.url.endsWith("/")) {
-    return new Response("Method Not Allowed", { status: 405 });
+  // Validate path
+  if (path === "" || path.endsWith("/")) {
+    return new Response("Bad Request: empty or trailing slash path", { status: 400 });
+  }
+  
+  // Validate key length (R2 limit: 1024 bytes)
+  if (new TextEncoder().encode(path).length > 1024) {
+    return new Response("Bad Request: key exceeds 1024 bytes", { status: 400 });
   }
 
   // Check if the parent directory exists
+  // Allow _$flaredrive$/ prefix for internal thumbnails
   if (!path.startsWith("_$flaredrive$/")) {
     const parentPath = path.replace(/(\/|^)[^/]*$/, "");
     const parentDir =
