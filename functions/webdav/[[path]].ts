@@ -60,35 +60,40 @@ export const onRequest: PagesFunction<{
   WEBDAV_PASSWORD: string;
   WEBDAV_PUBLIC_READ?: string;
 }> = async function (context) {
-  const env = context.env;
-  const request: Request = context.request;
-  if (request.method === "OPTIONS") return handleRequestOptions();
+  try {
+    const env = context.env;
+    const request: Request = context.request;
+    if (request.method === "OPTIONS") return handleRequestOptions();
 
-  const skipAuth =
-    env.WEBDAV_PUBLIC_READ === "1" &&
-    ["GET", "HEAD", "PROPFIND"].includes(request.method);
+    const skipAuth =
+      env.WEBDAV_PUBLIC_READ === "1" &&
+      ["GET", "HEAD", "PROPFIND"].includes(request.method);
 
-  if (!skipAuth) {
-    if (!env.WEBDAV_USERNAME || !env.WEBDAV_PASSWORD)
-      return new Response("WebDAV protocol is not enabled", { status: 403 });
+    if (!skipAuth) {
+      if (!env.WEBDAV_USERNAME || !env.WEBDAV_PASSWORD)
+        return new Response("WebDAV protocol is not enabled", { status: 403 });
 
-    const auth = request.headers.get("Authorization");
-    if (!auth) return unauthorized();
+      const auth = request.headers.get("Authorization");
+      if (!auth) return unauthorized();
 
-    const expectedAuth = `Basic ${btoa(
-      `${env.WEBDAV_USERNAME}:${env.WEBDAV_PASSWORD}`
-    )}`;
-    if (!timingSafeEqual(auth, expectedAuth)) return unauthorized();
+      const expectedAuth = `Basic ${btoa(
+        `${env.WEBDAV_USERNAME}:${env.WEBDAV_PASSWORD}`
+      )}`;
+      if (!timingSafeEqual(auth, expectedAuth)) return unauthorized();
+    }
+
+    const [bucket, path] = parseBucketPath(context);
+    if (!bucket)
+      return new Response(
+        "R2 bucket binding is not configured: bind a bucket to the BUCKET variable",
+        { status: 500 }
+      );
+
+    const method: string = (context.request as Request).method;
+    const handler = HANDLERS[method] ?? handleMethodNotAllowed;
+    return handler({ bucket, path, request: context.request });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return new Response(`Internal Server Error: ${message}`, { status: 500 });
   }
-
-  const [bucket, path] = parseBucketPath(context);
-  if (!bucket)
-    return new Response(
-      "R2 bucket binding is not configured: bind a bucket to the BUCKET variable",
-      { status: 500 }
-    );
-
-  const method: string = (context.request as Request).method;
-  const handler = HANDLERS[method] ?? handleMethodNotAllowed;
-  return handler({ bucket, path, request: context.request });
 };

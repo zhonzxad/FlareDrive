@@ -32,8 +32,24 @@ export function parseBucketPath(
   const { request, env, params } = context;
   const url = new URL(request.url);
 
-  const pathSegments = (params.path || []) as String[];
-  const path = decodeURIComponent(pathSegments.join("/"));
+  const pathSegments = (params.path || []) as string[];
+  
+  // Decode each path segment individually, reject invalid encoding
+  const decodedSegments: string[] = [];
+  for (const segment of pathSegments) {
+    try {
+      decodedSegments.push(decodeURIComponent(segment));
+    } catch {
+      throw new URIError(`Invalid URI encoding in path segment: ${segment}`);
+    }
+  }
+  const path = decodedSegments.join("/");
+  
+  // Reject path traversal
+  if (path.includes("/../") || path.endsWith("/..") || path === ".." || path.includes("\0")) {
+    throw new URIError("Invalid path: contains path traversal or null bytes");
+  }
+  
   const driveid = url.hostname.replace(/\..*/, "");
 
   // 只有真正拿到 R2Bucket 才算绑定成功；否则调用方会拿到 undefined
