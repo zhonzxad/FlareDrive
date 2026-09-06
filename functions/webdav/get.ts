@@ -45,6 +45,17 @@ function parseRangeHeader(header: string, size: number): ByteRange | null {
   return { start, end };
 }
 
+/**
+ * 请求走的是缓存重新校验（If-None-Match / If-Modified-Since）而非
+ * 强前置条件（If-Match / If-Unmodified-Since）。后者应回 412。
+ */
+function isCacheRevalidation(request: Request): boolean {
+  return (
+    request.headers.has("if-none-match") ||
+    request.headers.has("if-modified-since")
+  );
+}
+
 export async function handleRequestGet({
   bucket,
   path,
@@ -79,14 +90,23 @@ export async function handleRequestGet({
       : undefined,
   });
   if (obj === null) return notFound();
-  if (!("body" in obj))
-    return new Response("Preconditions failed", { status: 412 });
 
   const headers = new Headers();
   obj.writeHttpMetadata(headers);
+  headers.set("etag", obj.httpEtag);
+  headers.set("Accept-Ranges", "bytes");
+  headers.set("Last-Modified", obj.uploaded.toUTCString());
+
+  if (!("body" in obj)) {
+    // R2 把所有 onlyIf 失败都映射成"没有 body 的 R2Object"，但 RFC 要求
+    // If-None-Match / If-Modified-Since 命中要回 304 而不是 412
+    if (isCacheRevalidation(request))
+      return new Response(null, { status: 304, headers });
+    return new Response("Preconditions failed", { status: 412, headers });
+  }
+
   if (path.startsWith("_$flaredrive$/thumbnails/"))
     headers.set("Cache-Control", "max-age=31536000");
-  headers.set("Accept-Ranges", "bytes");
 
   // 不允许浏览器按存储的 Content-Type 猜测内容类型
   headers.set("X-Content-Type-Options", "nosniff");
