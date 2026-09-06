@@ -10,6 +10,23 @@ import { handleRequestPut } from "./put";
 import { RequestHandlerParams } from "./utils";
 import { handleRequestPost } from "./post";
 
+const WWW_AUTHENTICATE = `Basic realm="WebDAV", charset="UTF-8"`;
+
+function unauthorized() {
+  return new Response("Unauthorized", {
+    status: 401,
+    headers: { "WWW-Authenticate": WWW_AUTHENTICATE },
+  });
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++)
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
+}
+
 async function handleRequestOptions() {
   return new Response(null, {
     headers: {
@@ -56,17 +73,12 @@ export const onRequest: PagesFunction<{
       return new Response("WebDAV protocol is not enabled", { status: 403 });
 
     const auth = request.headers.get("Authorization");
-    if (!auth) {
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: { "WWW-Authenticate": `Basic realm="WebDAV"` },
-      });
-    }
+    if (!auth) return unauthorized();
+
     const expectedAuth = `Basic ${btoa(
       `${env.WEBDAV_USERNAME}:${env.WEBDAV_PASSWORD}`
     )}`;
-    if (auth !== expectedAuth)
-      return new Response("Unauthorized", { status: 401 });
+    if (!timingSafeEqual(auth, expectedAuth)) return unauthorized();
   }
 
   const [bucket, path] = parseBucketPath(context);
