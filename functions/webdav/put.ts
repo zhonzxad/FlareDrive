@@ -14,14 +14,25 @@ async function handleRequestPutMultipart({
   const multipartUpload = bucket.resumeMultipartUpload(path, uploadId);
 
   const partNumber = parseInt(partNumberStr);
-  const uploadedPart = await multipartUpload.uploadPart(
-    partNumber,
-    request.body
-  );
+  try {
+    const uploadedPart = await multipartUpload.uploadPart(
+      partNumber,
+      request.body
+    );
 
-  return new Response(null, {
-    headers: { "Content-Type": "application/json", etag: uploadedPart.etag },
-  });
+    return new Response(null, {
+      headers: { "Content-Type": "application/json", etag: uploadedPart.etag },
+    });
+  } catch (error) {
+    // Abort the multipart upload on failure to prevent billing for incomplete parts
+    try {
+      await multipartUpload.abort();
+    } catch {
+      // Ignore abort errors
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(`Upload part failed: ${message}`, { status: 500 });
+  }
 }
 
 export async function handleRequestPut({

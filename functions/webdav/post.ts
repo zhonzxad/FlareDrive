@@ -40,6 +40,25 @@ export async function handleRequestPostCompleteMultipart({
   }
 }
 
+export async function handleRequestPostAbortMultipart({
+  bucket,
+  path,
+  request,
+}: RequestHandlerParams) {
+  const url = new URL(request.url);
+  const uploadId = new URLSearchParams(url.search).get("uploadId");
+  if (!uploadId) return new Response("Bad Request", { status: 400 });
+
+  const multipartUpload = bucket.resumeMultipartUpload(path, uploadId);
+  try {
+    await multipartUpload.abort();
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(`Abort failed: ${message}`, { status: 500 });
+  }
+}
+
 export const handleRequestPost = async function ({
   bucket,
   path,

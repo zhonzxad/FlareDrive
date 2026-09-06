@@ -8,7 +8,7 @@ import { handleRequestMove } from "./move";
 import { handleRequestPropfind } from "./propfind";
 import { handleRequestPut } from "./put";
 import { RequestHandlerParams } from "./utils";
-import { handleRequestPost } from "./post";
+import { handleRequestPost, handleRequestPostAbortMultipart } from "./post";
 
 const WWW_AUTHENTICATE = `Basic realm="WebDAV", charset="UTF-8"`;
 
@@ -90,6 +90,16 @@ export const onRequest: PagesFunction<{
       );
 
     const method: string = (context.request as Request).method;
+    
+    // Special case: DELETE ?uploadId is handled by the post module
+    if (method === "DELETE") {
+      const url = new URL(context.request.url);
+      const searchParams = new URLSearchParams(url.search);
+      if (searchParams.has("uploadId")) {
+        return handleRequestPostAbortMultipart({ bucket, path, request: context.request });
+      }
+    }
+    
     const handler = HANDLERS[method] ?? handleMethodNotAllowed;
     return handler({ bucket, path, request: context.request });
   } catch (e) {
