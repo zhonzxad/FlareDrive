@@ -146,7 +146,26 @@ function xhrFetch(
     xhr.onerror = () => reject(new Error("Network error"));
     xhr.ontimeout = () => reject(new Error("Request timeout"));
     xhr.onabort = () => reject(new Error("Request aborted"));
-    xhr.send(requestInit.body ?? null);
+    
+    // XMLHttpRequest only supports specific body types, not ReadableStream
+    const body = requestInit.body;
+    if (body === null || body === undefined) {
+      xhr.send(null);
+    } else if (typeof body === "string") {
+      xhr.send(body);
+    } else if (body instanceof Blob) {
+      xhr.send(body);
+    } else if (body instanceof FormData) {
+      xhr.send(body);
+    } else if (body instanceof ArrayBuffer) {
+      xhr.send(body);
+    } else if (ArrayBuffer.isView(body)) {
+      xhr.send(body);
+    } else {
+      // For other body types (ReadableStream, etc.), send null
+      // This shouldn't happen in normal upload flows
+      xhr.send(null);
+    }
   });
 }
 
