@@ -26,7 +26,9 @@ export function notFound() {
   return new Response("Not found", { status: 404 });
 }
 
-export function parseBucketPath(context: any): [R2Bucket, string] {
+export function parseBucketPath(
+  context: any
+): [R2Bucket | undefined, string] {
   const { request, env, params } = context;
   const url = new URL(request.url);
 
@@ -34,7 +36,15 @@ export function parseBucketPath(context: any): [R2Bucket, string] {
   const path = decodeURIComponent(pathSegments.join("/"));
   const driveid = url.hostname.replace(/\..*/, "");
 
-  return [env[driveid] || env["BUCKET"], path];
+  // 只有真正拿到 R2Bucket 才算绑定成功；否则调用方会拿到 undefined
+  // 并在每个操作上抛 TypeError，而不是给出一个明确的配置错误
+  const candidate = env[driveid] ?? env["BUCKET"];
+  const bucket =
+    typeof candidate?.head === "function"
+      ? (candidate as R2Bucket)
+      : undefined;
+
+  return [bucket, path];
 }
 
 export async function* listAll(

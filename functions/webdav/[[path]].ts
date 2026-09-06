@@ -82,7 +82,11 @@ export const onRequest: PagesFunction<{
   }
 
   const [bucket, path] = parseBucketPath(context);
-  if (!bucket) return notFound();
+  if (!bucket)
+    return new Response(
+      "R2 bucket binding is not configured: bind a bucket to the BUCKET variable",
+      { status: 500 }
+    );
 
   const method: string = (context.request as Request).method;
   const handler = HANDLERS[method] ?? handleMethodNotAllowed;
