@@ -143,13 +143,10 @@ function xhrFetch(
         }, {} as Record<string, string>);
       resolve(new Response(xhr.responseText, { status: xhr.status, headers }));
     };
-    xhr.onerror = reject;
-    if (
-      requestInit.body instanceof Blob ||
-      typeof requestInit.body === "string"
-    ) {
-      xhr.send(requestInit.body);
-    }
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.ontimeout = () => reject(new Error("Request timeout"));
+    xhr.onabort = () => reject(new Error("Request aborted"));
+    xhr.send(requestInit.body ?? null);
   });
 }
 
@@ -205,12 +202,14 @@ export async function multipartUpload(
       const retryReducer = (acc: Promise<Response>) =>
         acc
           .then((res) => {
+            if (!res.ok) throw new Error(`Upload part failed with status ${res.status}`);
             const retryAfter = res.headers.get("retry-after");
             if (!retryAfter) return res;
             return uploadPart();
           })
           .catch(uploadPart);
       const response = await [1, 2].reduce(retryReducer, uploadPart());
+      if (!response.ok) throw new Error(`Upload part failed with status ${response.status}`);
       return { partNumber: i, etag: response.headers.get("etag")! };
     })
   );
@@ -296,11 +295,15 @@ export async function processTransferTask({
     });
   } else {
     const uploadUrl = `${WEBDAV_ENDPOINT}${encodeKey(remoteKey)}`;
-    return await xhrFetch(uploadUrl, {
+    const response = await xhrFetch(uploadUrl, {
       method: "PUT",
       headers,
       body: file,
       onUploadProgress: onTaskProgress,
     });
+    if (!response.ok) {
+      throw new Error(`Upload failed with status ${response.status}`);
+    }
+    return response;
   }
 }
