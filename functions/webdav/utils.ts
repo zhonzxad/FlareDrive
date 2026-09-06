@@ -17,7 +17,10 @@ export const ROOT_OBJECT = {
   customMetadata: undefined,
   size: 0,
   etag: undefined,
+  httpEtag: undefined,
 };
+
+export const DIRECTORY_CONTENT_TYPE = "application/x-directory";
 
 export function notFound() {
   return new Response("Not found", { status: 404 });

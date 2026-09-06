@@ -19,15 +19,20 @@ export async function fetchPath(path: string) {
   const text = await res.text();
   const document = parser.parseFromString(text, "application/xml");
   const items: FileItem[] = Array.from(document.querySelectorAll("response"))
-    .filter(
-      (response) =>
-        decodeURIComponent(
-          response.querySelector("href")?.textContent ?? ""
-        ).slice(WEBDAV_ENDPOINT.length) !== path.replace(/\/$/, "")
-    )
     .map((response) => {
       const href = response.querySelector("href")?.textContent;
       if (!href) throw new Error("Invalid response");
+      // href 由服务端逐段 encodeURIComponent 后经 XML 转义得到，
+      // 集合的 href 还带结尾斜杠，这里统一还原成不带斜杠的 key
+      return {
+        response,
+        key: decodeURIComponent(href)
+          .replace(/^\/webdav\//, "")
+          .replace(/\/$/, ""),
+      };
+    })
+    .filter(({ key }) => key !== path.replace(/\/$/, ""))
+    .map(({ response, key }) => {
       const contentType = response.querySelector("getcontenttype")?.textContent;
       const size = response.querySelector("getcontentlength")?.textContent;
       const lastModified =
@@ -37,7 +42,7 @@ export async function fetchPath(path: string) {
         "thumbnail"
       )[0]?.textContent;
       return {
-        key: decodeURI(href).replace(/^\/webdav\//, ""),
+        key,
         size: size ? Number(size) : 0,
         uploaded: lastModified!,
         httpMetadata: { contentType: contentType! },
