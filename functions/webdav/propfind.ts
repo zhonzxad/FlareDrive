@@ -11,7 +11,11 @@ type DirectoryEntry = {
   key: string;
   size: number;
   uploaded: Date;
-  httpMetadata: { contentType: string };
+  httpMetadata: {
+    contentType: string;
+    contentLanguage?: undefined;
+    contentDisposition?: undefined;
+  };
   customMetadata: undefined;
   etag: undefined;
   httpEtag: undefined;

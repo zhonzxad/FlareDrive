@@ -56,8 +56,9 @@ export function parseBucketPath(
  */
 export async function* listDirectories(bucket: R2Bucket, prefix?: string) {
   let cursor: string | undefined = undefined;
+  let r2Objects: R2Objects;
   do {
-    const r2Objects = await bucket.list({
+    r2Objects = await bucket.list({
       prefix: prefix,
       delimiter: "/",
       cursor: cursor,
