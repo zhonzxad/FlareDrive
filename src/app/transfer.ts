@@ -168,6 +168,10 @@ export async function multipartUpload(
     headers,
     method: "POST",
   });
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text().catch(() => "Unknown error");
+    throw new Error(`Failed to create multipart upload: ${uploadResponse.status} - ${errorText}`);
+  }
   const { uploadId } = await uploadResponse.json<{ uploadId: string }>();
   const totalChunks = Math.ceil(file.size / SIZE_LIMIT);
 
