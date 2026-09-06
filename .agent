@@ -1,0 +1,53 @@
+# FlareDrive Agent
+
+## Project Summary
+FlareDrive is a Cloudflare R2 storage manager with Pages and Workers, providing 10GB free storage and 100,000 daily serverless invocations.
+
+## Tech Stack
+- **Frontend**: React 18, TypeScript, MUI (Material-UI), Emotion
+- **Backend**: Cloudflare Workers (WebDAV endpoint), Cloudflare R2 (S3-compatible storage)
+- **Build**: React Scripts, Wrangler CLI
+
+## Key Features
+- File upload (supports chunked uploads for large files ≥128MB)
+- Folder creation and management
+- File search
+- Image/video/PDF thumbnail generation
+- WebDAV protocol endpoint
+- Drag-and-drop upload
+- Multi-select operations (download, rename, delete, share)
+
+## Architecture
+- **Frontend** (`src/`): React components for file management UI
+- **Backend** (`functions/webdav/`): WebDAV implementation for Cloudflare Workers
+- **Utils** (`utils/s3.ts`): S3-compatible authentication for Cloudflare R2
+
+## Main Components
+- `App.tsx`: Theme provider and app container
+- `Main.tsx`: Main file browser with drag-drop, breadcrumbs, multi-select
+- `FileGrid.tsx`: Grid display for files and folders
+- `transfer.ts`: File upload logic including multipart and thumbnail generation
+- `transferQueue.tsx`: Upload queue management
+- WebDAV handlers: COPY, DELETE, GET, HEAD, MKCOL, MOVE, POST, PROPFIND, PUT
+
+## Development Commands
+- `npm start`: Start development server
+- `npm run build`: Build for production
+- `npx wrangler pages deploy build`: Deploy to Cloudflare Pages
+
+## Environment Variables
+- `WEBDAV_USERNAME`: WebDAV authentication username
+- `WEBDAV_PASSWORD`: WebDAV authentication password
+- `WEBDAV_PUBLIC_READ`: Set to "1" for public read access
+- `BUCKET`: R2 bucket binding (configured in Cloudflare dashboard)
+
+## Dependencies
+- p-limit: Concurrency control for parallel uploads
+- MUI: UI component library
+- Emotion: CSS-in-JS styling
+- @cloudflare/workers-types: TypeScript types for Workers
+
+## Notes
+- WebDAV endpoint: `/webdav/`
+- Large files (≥128MB) must use multipart upload via web interface
+- Thumbnails stored in `_$flaredrive$/thumbnails/` directory
