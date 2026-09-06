@@ -182,8 +182,8 @@ export async function multipartUpload(
         uploadId,
       });
       const uploadUrl = `/webdav/${encodeKey(key)}?${searchParams}`;
-      if (i === limit.concurrency)
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Throttle second concurrent upload to avoid overwhelming the server
+      if (i === 2) await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const uploadPart = () =>
         xhrFetch(uploadUrl, {
