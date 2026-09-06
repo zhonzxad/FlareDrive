@@ -4,6 +4,17 @@ import { RequestHandlerParams } from "./utils";
 type ByteRange = { start: number; end: number };
 
 /**
+ * 会被浏览器直接渲染、从而能执行脚本的内容类型。
+ * put.ts 原样保存客户端传来的 Content-Type，若照原样回显，
+ * 任何人上传一个 text/html 文件就能在 Pages 域名下拿到存储型 XSS。
+ */
+const RENDERABLE_CONTENT_TYPES = new Set([
+  "text/html",
+  "application/xhtml+xml",
+  "image/svg+xml",
+]);
+
+/**
  * 解析 `Range: bytes=...`（RFC 7233）。只支持单个区间，
  * 多区间或不合法写法一律返回 null，由调用方回退到完整响应 / 416。
  */
@@ -73,6 +84,18 @@ export async function handleRequestGet({
   if (path.startsWith("_$flaredrive$/thumbnails/"))
     headers.set("Cache-Control", "max-age=31536000");
   headers.set("Accept-Ranges", "bytes");
+
+  // 不允许浏览器按存储的 Content-Type 猜测内容类型
+  headers.set("X-Content-Type-Options", "nosniff");
+  const contentType = (obj.httpMetadata?.contentType ?? "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (RENDERABLE_CONTENT_TYPES.has(contentType)) {
+    // 沙箱化为不透明源，即使被渲染也无法访问 /webdav 或读取缓存凭据
+    headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
+    headers.set("Content-Disposition", "attachment");
+  }
 
   if (range !== null && totalSize !== null) {
     headers.set("Content-Range", `bytes ${range.start}-${range.end}/${totalSize}`);
