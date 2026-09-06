@@ -12,6 +12,9 @@ const RENDERABLE_CONTENT_TYPES = new Set([
   "text/html",
   "application/xhtml+xml",
   "image/svg+xml",
+  // XML 可以携带 <?xml-stylesheet?> 引入 XSLT，同样能执行脚本
+  "text/xml",
+  "application/xml",
 ]);
 
 /**
